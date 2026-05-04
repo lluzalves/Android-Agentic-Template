@@ -29,16 +29,10 @@ This script wires a **6-layer Deterministic Constraint System** into your existi
 **1. Download the setup script**
 
 ```bash
-curl -O https://raw.githubusercontent.com/your-handle/android-agentic-template/main/setup_agent.py
-```
-
-Or clone the repo:
-
-```bash
 git clone https://github.com/your-handle/android-agentic-template.git
 ```
 
-**2. Go to your Android project root**
+**2. Copy the setup_agent.py file to your Android project root**
 
 ```bash
 cd /path/to/your/android/project
