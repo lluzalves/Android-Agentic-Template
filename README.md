@@ -1,7 +1,7 @@
 # Android Agentic Template
 
-> Stop letting AI guess your architecture.
-> One script. Six layers. Drop into any Android project and run.
+> Stop letting AI guess your architecture.  
+> One script. Seven layers. Drop into any Android project and run.
 
 ---
 
@@ -10,15 +10,30 @@
 AI coding assistants don't know your Koin modules, your Room schema, or your Navigation graph.
 They're probabilistic text generators with finite context windows — they will pass `NavController`
 into Composables and hardcode strings until you give them guardrails.
+
+This script wires **seven layers** of constraints around GitHub Copilot, Gemini Code Assist, or both:
+
+| Layer | What it does | File |
+|---|---|---|
+| 1 — Eviction | Blocks KSP stubs, assets, locale XMLs from passive scan | `.copilotignore` / `.aiexclude` |
+| 2 — System Prompt | Project rules + canonical Kotlin patterns | `.github/copilot-instructions.md` |
+| 3 — CoT Enforcement | Forces plan-before-code on architecture changes | Inside copilot-instructions.md |
+| 4 — Architecture Map | Package map + KSP conventions | `AGENTS.md` |
+| 5 — Keyword Routing | `@DB`, `@Nav`, `@AI` trigger deterministic file injection | Inside copilot-instructions.md + AGENTS.md |
+| 6 — HITL Scripts | Bulk data ops via human-gated terminal commands | `scripts/query_data.py` |
+| 7 — Decision Log | Append-only memory of why decisions were made | `docs/history/` |
+
+---
+
 ## Quick start
 
 **1. Download the setup script**
 
 ```bash
-git clone https://github.com/your-handle/android-agentic-template.git
+git clone https://github.com/lluzalves/Android-Agentic-Template
 ```
 
-**2. Copy the setup_agent.py file to your Android project root**
+**2. Copy `setup_agent.py` to your Android project root**
 
 ```bash
 cd /path/to/your/android/project
@@ -30,80 +45,149 @@ cd /path/to/your/android/project
 python3 setup_agent.py report
 ```
 
-Output:
+You will be asked which AI assistant you use:
+```
+Which AI assistant are you setting up?
+  1) GitHub Copilot
+  2) Gemini Code Assist
+  3) Both
+```
+
+Or skip the prompt with the `--tool` flag:
+
+```bash
+python3 setup_agent.py report --tool copilot   # Copilot only
+python3 setup_agent.py report --tool gemini    # Gemini only
+python3 setup_agent.py report --tool both      # both
+```
+
+Example output (`--tool both`):
 ```json
 {
-  "root": "/your/project",
   "files": [
-    { "rel_path": ".copilotignore",                    "action": "create" },
-    { "rel_path": ".aiexclude",                        "action": "create" },
-    { "rel_path": ".github/copilot-instructions.md",   "action": "create" },
-    { "rel_path": "docs/project-rules.md",             "action": "create" },
-    { "rel_path": "AGENTS.md",                         "action": "create" },
-    { "rel_path": "scripts/query_data.py",             "action": "create" },
-    { "rel_path": "docs/history/CHANGELOG.md",         "action": "create" }
+    { "rel_path": "AGENTS.md",                                         "action": "create" },
+    { "rel_path": "scripts/query_data.py",                             "action": "create" },
+    { "rel_path": "docs/history/CHANGELOG.md",                         "action": "create" },
+    { "rel_path": "docs/history/phases/phase-00-initial-setup.md",     "action": "create" },
+    { "rel_path": ".copilotignore",                                    "action": "create" },
+    { "rel_path": ".github/copilot-instructions.md",                   "action": "create" },
+    { "rel_path": ".github/instructions/database.instructions.md",     "action": "create" },
+    { "rel_path": ".aiexclude",                                        "action": "create" }
   ]
 }
-→ 7 file(s) would be created, 0 already exist (would be skipped).
+→ 8 file(s) would be created, 0 already exist (would be skipped).
 ```
 
 **4. Apply**
 
 ```bash
-python3 setup_agent.py apply
+python3 setup_agent.py apply --tool both
 ```
 
 ```
-✅ 7 file(s) created, 0 skipped.
+✅ 8 file(s) created, 0 skipped.
 
 Next steps:
-  1. Open .copilotignore    → adjust paths to your build/asset directories
-  2. Open .github/copilot-instructions.md → paste your real ViewModel pattern
-  3. Open AGENTS.md         → fill in your package map and nav destinations
-  4. Open scripts/query_data.py → implement lookup logic for your data
+  • .copilotignore                            → adjust paths (enterprise only; Tab Hygiene for individuals)
+  • .github/copilot-instructions.md           → paste your real ViewModel pattern + project rules
+  • .github/instructions/database.instructions.md → update the applyTo glob to your package path
+  • .aiexclude                                → adjust paths to your build / asset directories
+  • AGENTS.md                                 → fill in your package map, nav destinations, and patterns
+  • scripts/query_data.py                     → implement lookup logic for your data
+  • docs/history/phases/phase-00-initial-setup.md → fill in your first decisions + alternatives considered
+
+Remember: start a fresh chat session for every new task (Reset Habit).
 ```
 
 > **Safe to re-run** — existing files are never overwritten.
 
 ---
 
-## After running — three files to customise
+## Files by tool
 
-The generated files are intentionally generic with `# TODO:` markers.
-You only need to update three before your first AI session:
+| File | Copilot | Gemini |
+|---|:---:|:---:|
+| `AGENTS.md` | ✅ | ✅ |
+| `scripts/query_data.py` | ✅ | ✅ |
+| `docs/history/CHANGELOG.md` | ✅ | ✅ |
+| `docs/history/phases/phase-00-initial-setup.md` | ✅ | ✅ |
+| `.copilotignore` | ✅ | — |
+| `.github/copilot-instructions.md` | ✅ | — |
+| `.github/instructions/database.instructions.md` | ✅ | — |
+| `.aiexclude` | — | ✅ |
 
-### 1. `.copilotignore`
-Adjust the asset paths to match your project:
-```gitignore
-# TODO: change this to your actual assets directory
-app/src/main/assets/**
-```
+---
+
+## After running — what to customise
+
+Every generated file has `# TODO:` markers. The five that matter most:
+
+### 1. `.copilotignore` / `.aiexclude`
+Adjust asset and build paths to match your project structure.
+> ⚠️ `.copilotignore` only has practical effect on Copilot Enterprise plans.
+> For individuals, the real eviction strategy is **Tab Hygiene** — keep irrelevant files closed.
 
 ### 2. `.github/copilot-instructions.md`
-Paste your real ViewModel pattern. The AI will mirror it:
+Paste your real ViewModel/UiState pattern. The AI will mirror it exactly:
 ```kotlin
-// TODO: replace XUiState with your real pattern
+// TODO: replace with your real pattern + DI annotation
 data class MyUiState(val isLoading: Boolean = true, val error: String? = null)
 
-@KoinViewModel  // TODO: swap for @HiltViewModel if using Hilt
-class MyViewModel : ViewModel() { ... }
+@KoinViewModel  // or @HiltViewModel
+class MyViewModel : ViewModel() {
+    private val _uiState = MutableStateFlow(MyUiState())
+    val uiState: StateFlow<MyUiState> = _uiState.asStateFlow()
+}
 ```
 
 ### 3. `AGENTS.md`
-Fill in your actual package map and navigation destinations:
+Fill in your actual package map, navigation destinations, and KSP conventions.
+
+### 4. `scripts/query_data.py`
+Replace the stub with real lookup logic for your project's data.
+
+### 5. `docs/history/phases/phase-00-initial-setup.md`
+Fill in the **Goal**, **Changes**, **Alternatives considered**, and **Verification** sections
+after your first session. This is the seed of your project's long-term AI memory.
+
+---
+
+## The Decision Log (Layer 7)
+
+The log gives the AI a "memory" that survives across chat sessions. Without it, the AI
+re-proposes libraries you already rejected and undoes architectural trade-offs you spent
+days finalising.
+
+Each phase file follows this structure:
+
 ```markdown
-## Package Map
-app/
-  data/db/    YourDatabase.kt
-  ui/
-    navigation/ YourDestinations.kt
+# Phase 01 — Navigation Refactor
+
+## Goal
+Move to callback-only navigation.
+
+## Changes
+- Removed NavController from all Composables.
+
+## Alternatives considered
+| Option | Why rejected |
+|---|---|
+| Keep NavController | Breaks Compose previews and unit tests |
+
+## Verification
+- [ ] Build confirmed clean
+- [ ] Lint check passes
 ```
+
+**Rules:** never delete or rewrite phase files. Append a new one for every significant change.
+Record rejections — what you didn't pick is as important as what you did.
 
 ---
 
 ## Using the HITL script
 
-`scripts/query_data.py` is a compliant stub — replace the stub logic with real lookups:
+`scripts/query_data.py` is a compliant stub. Replace the stub logic with real lookups for
+your project (exercise JSONs, translations, local DB, etc.):
 
 ```bash
 # Preview (no side effects)
@@ -121,16 +205,12 @@ Output is always JSON — paste it back into the AI chat.
 
 Every script in `scripts/` must satisfy four rules:
 
-1. **Idempotent** — safe to re-run
-2. **`report` mode** — previews without applying
-3. **Structured output** — JSON
-4. **Registered** — listed in `AGENTS.md` routing rules
-
----
-
-## Full article
-
-**[I Got Tired of Copilot Hallucinating My Android Architecture. Here's the 6-Layer System I Built.]([https://medium.com/p/fe7c47dc7363?postPublishedType=initial])**
+| Rule | Why |
+|---|---|
+| **Idempotent** | Safe to re-run without side effects |
+| **`report` mode** | Previews without applying |
+| **Structured output** | JSON — parseable by the AI in the next turn |
+| **Registered** | Listed in `AGENTS.md` routing rules so the AI knows it exists |
 
 ---
 
@@ -138,3 +218,9 @@ Every script in `scripts/` must satisfy four rules:
 
 - Python 3.10+
 - No external dependencies — stdlib only
+
+---
+
+## Full article
+
+**[Stop Letting AI Go Off-Script: Building a Constraint-Based Context Pipeline](#)**
