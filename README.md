@@ -10,20 +10,6 @@
 AI coding assistants don't know your Koin modules, your Room schema, or your Navigation graph.
 They're probabilistic text generators with finite context windows — they will pass `NavController`
 into Composables and hardcode strings until you give them guardrails.
-
-This script wires a **6-layer Deterministic Constraint System** into your existing Android project:
-
-| Layer | What it creates | Why |
-|---|---|---|
-| 1 — Eviction | `.copilotignore` + `.aiexclude` | Blocks KSP stubs, assets, locale XMLs from passive scan |
-| 2 — System Prompt | `.github/copilot-instructions.md` | Your non-negotiable Android rules |
-| 3 — CoT Protocol | (inside the system prompt) | Forces plan-before-code on every architecture change |
-| 4 — Architecture Map | `AGENTS.md` | Package map + Room/Koin/Compose KSP conventions |
-| 5 — Keyword Routing | (inside the system prompt) | `@DB`, `@Nav`, `@AI` trigger deterministic file injection |
-| 6 — HITL Script | `scripts/query_data.py` | Bulk data ops via human-gated terminal commands |
-
----
-
 ## Quick start
 
 **1. Download the setup script**
