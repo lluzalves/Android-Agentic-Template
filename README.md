@@ -144,7 +144,7 @@ Every script in `scripts/` must satisfy four rules:
 
 ## Full article
 
-**[I Got Tired of Copilot Hallucinating My Android Architecture. Here's the 6-Layer System I Built.](https://your-blog-link-here)**
+**[I Got Tired of Copilot Hallucinating My Android Architecture. Here's the 6-Layer System I Built.]([https://medium.com/p/fe7c47dc7363?postPublishedType=initial])**
 
 ---
 
