@@ -152,7 +152,7 @@ after your first session. This is the seed of your project's long-term AI memory
 
 ---
 
-## The Decision Log (Layer 7)
+## The Decision Log
 
 The log gives the AI a "memory" that survives across chat sessions. Without it, the AI
 re-proposes libraries you already rejected and undoes architectural trade-offs you spent
