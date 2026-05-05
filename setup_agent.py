@@ -1,12 +1,22 @@
 #!/usr/bin/env python3
 """
-setup_agent.py — Deterministic Constraint System bootstrapper.
+setup_agent.py — Deterministic Constraint System bootstrapper (7 layers).
 
 Run this script from the ROOT of your Android project:
     python3 setup_agent.py report   # preview what will be created (no changes)
     python3 setup_agent.py apply    # create the files
 
+You will be asked which AI assistant you use: Copilot, Gemini, or Both.
 Existing files are NEVER overwritten. Safe to re-run.
+
+Generated layers:
+  1 — Context Eviction        .copilotignore / .aiexclude
+  2 — System Prompt           .github/copilot-instructions.md
+  3 — CoT Enforcement         (inside copilot-instructions.md)
+  4 — Architecture Map        AGENTS.md
+  5 — Keyword Routing         (inside copilot-instructions.md + AGENTS.md)
+  6 — HITL Scripts            scripts/query_data.py
+  7 — Decision Log            docs/history/CHANGELOG.md + phases/phase-00-initial-setup.md
 """
 
 import argparse
@@ -15,185 +25,20 @@ import sys
 from pathlib import Path
 
 # ──────────────────────────────────────────────────────────────────────────────
-# File definitions
-# Each entry: (relative_path, file_content)
+# Shared files — created regardless of tool choice
 # ──────────────────────────────────────────────────────────────────────────────
 
-FILES = {
-
-    # ── Layer 1: Context Eviction ─────────────────────────────────────────────
-    ".copilotignore": """\
-# ═══════════════════════════════════════════════════════════════════════════════
-# LAYER 1 — Context Eviction
-# Blocks heavy directories from the AI's passive background scan.
-# The model can still read these files when you explicitly ask it to.
-# ═══════════════════════════════════════════════════════════════════════════════
-
-# ── KSP / Build output ────────────────────────────────────────────────────────
-# KSP generates Room_Impl, Koin factories, Compose singletons — all noise.
-# This single rule has the biggest impact on context quality.
-**/build/generated/ksp/**
-app/build/
-build/
-
-# ── Bundled data assets ───────────────────────────────────────────────────────
-# Large JSON datasets, raw audio, ML models.
-# TODO: adjust these paths to match your project's actual asset directories.
-app/src/main/assets/**
-app/src/main/res/raw/**
-
-# ── Locale translation strings ────────────────────────────────────────────────
-# Each locale file is ~400 lines of dead context. Inject on demand instead.
-# TODO: if you only have one locale, you can remove this block.
-app/src/main/res/values-*/
-
-# ── Binary and media ──────────────────────────────────────────────────────────
-**/*.mp3
-**/*.png
-**/*.jpg
-**/*.webp
-
-# ── Phase history ─────────────────────────────────────────────────────────────
-# Historical logs — useful for humans, waste for the AI on every session.
-docs/history/
-""",
-
-    # ── Same eviction rules for Gemini / local tools ──────────────────────────
-    ".aiexclude": """\
-# Same as .copilotignore — used by Gemini Code Assist and local LLM tools.
-# Keep both files in sync.
-**/build/generated/ksp/**
-app/build/
-build/
-app/src/main/assets/**
-app/src/main/res/raw/**
-app/src/main/res/values-*/
-**/*.mp3
-**/*.png
-**/*.jpg
-**/*.webp
-docs/history/
-""",
-
-    # ── Layer 2 + 3 + 5: System Prompt (Copilot) ─────────────────────────────
-    ".github/copilot-instructions.md": """\
-# AI Coding Rules — GitHub Copilot
-# This file is auto-loaded by Copilot every session. Keep it focused.
-
-## ═══════════════════════════════════════════════════════════════
-## LAYER 3 — Interaction Protocol (Chain-of-Thought Enforcement)
-## ═══════════════════════════════════════════════════════════════
-## Forces the AI to plan before it writes code.
-## DO NOT REMOVE — this is the most impactful single rule.
-
-**For new features, new screens, DB migrations, or any architecture change:**
-Before writing ANY code, you MUST:
-1. **Restate** what you understood from the request in 2–3 lines.
-2. **Propose** the implementation approach with a short pros/cons table.
-3. **List at least one alternative** approach with its trade-offs.
-4. **Ask** if the user wants to proceed.
-Only write code after the user explicitly confirms.
-
-**For bug fixes or refactors touching ≤ 3 files:**
-Restate what you understood + confirm approach. No full pros/cons table needed.
-
-**For single-file changes, renames, or obvious one-liners:**
-Just do it.
-
----
-
-## ═══════════════════════════════════════════════════════════════
-## LAYER 2 — Non-Negotiable Project Rules
-## ═══════════════════════════════════════════════════════════════
-## TODO: replace these examples with your actual project rules.
-## The more specific, the better — include your real DI framework,
-## navigation approach, and naming conventions.
-
-<!-- EXAMPLE RULES (customise or replace) -->
-1. No hardcoded strings — use `stringResource(R.string.*)`.
-2. No NavController in Composables — navigation via callbacks only.
-3. `@KoinViewModel` on every ViewModel.
-   <!-- TODO: if using Hilt, replace with @HiltViewModel -->
-4. Entity != Domain model — map at the repository boundary.
-5. Apply `navigationBarsPadding()` + `statusBarsPadding()` on every screen root.
-
-## TODO: paste your canonical ViewModel / UiState pattern below.
-## The AI will mirror whatever pattern you show it here.
-<!--
-```kotlin
-data class XUiState(val isLoading: Boolean = true, val error: String? = null)
-
-@KoinViewModel  // TODO: swap for your DI annotation
-class XViewModel : ViewModel() {
-    private val _uiState = MutableStateFlow(XUiState())
-    val uiState: StateFlow<XUiState> = _uiState.asStateFlow()
-}
-
-@Composable
-fun XScreen(onNavigate: () -> Unit, viewModel: XViewModel = koinViewModel()) {
-    val s by viewModel.uiState.collectAsStateWithLifecycle()
-    // no NavController here — callbacks only
-}
-```
--->
-
----
-
-## ═══════════════════════════════════════════════════════════════
-## LAYER 5 — Mandatory Routing Rules
-## ═══════════════════════════════════════════════════════════════
-## Deterministic file injection — the AI fetches these on keyword match.
-## TODO: add routing rules for every major architecture boundary in your project.
-
-- IF the task involves DB schema, DAOs, or migrations
-  → fetch `data/db/AppDatabase.kt` immediately.
-- IF adding a new screen or destination
-  → read `ui/navigation/Destinations.kt` first.
-- IF prompt starts with `@DB`  → fetch AppDatabase.kt.
-- IF prompt starts with `@Nav` → fetch Destinations.kt.
-- IF prompt starts with `@AI`  → read the AI integration guide first.
-- IF working on bulk data files
-  → do NOT read files directly. Propose:
-    `python3 scripts/query_data.py report --term "<value>"`
-- IF asked about history
-  → read `docs/history/CHANGELOG.md` first.
-
-## TODO: add your own @-shortcuts here for frequently accessed files:
-# - IF prompt starts with `@Theme` → fetch `ui/theme/Color.kt`.
-
----
-
-## ═══════════════════════════════════════════════════════════════
-## Full reference docs (fetch on demand — not loaded every session)
-## ═══════════════════════════════════════════════════════════════
-- Architecture + package map: `AGENTS.md`
-- Phase history: `docs/history/CHANGELOG.md`
-## TODO: add paths to your own deep-dive docs here.
-""",
-
-    # ── Layer 2 + 3 + 5: Same rules for Gemini Code Assist ───────────────────
-    "docs/project-rules.md": """\
-# AI Coding Rules — Gemini Code Assist
-# Inject this file at the start of complex tasks: @project-rules.md
-
-## Interaction Protocol
-Same three-tier protocol as copilot-instructions.md.
-Tag @project-rules.md at the start of every architecture-level task.
-
-## Mandatory Context Routing
-<!-- Tag these files explicitly in your Gemini prompts -->
-- DB task           → ALWAYS tag `@AppDatabase.kt`
-- New screen        → ALWAYS tag `@Destinations.kt`
-- Architecture task → ALWAYS tag `@AGENTS.md`
-
-## TODO: Add your project-specific rules below (same content as copilot-instructions.md).
-""",
+SHARED_FILES = {
 
     # ── Layer 4: Architecture Map ─────────────────────────────────────────────
+    # Gemini scans for AGENTS.md in the current + parent directories and combines
+    # their content into a unified preamble automatically.
+    # Copilot ingests it via the fetch rules in copilot-instructions.md.
     "AGENTS.md": """\
 # Agent Architecture Guide
-# Fetch this file when the AI needs to understand project structure.
-# Keep it focused — only what the AI needs to navigate, not everything.
+# Keep this file under ~150 lines — only what the AI needs to navigate.
+# Gemini Code Assist: auto-loaded from project root.
+# GitHub Copilot: fetched on-demand via routing rules in .github/copilot-instructions.md.
 
 ---
 
@@ -219,53 +64,96 @@ MainActivity.kt
 
 ---
 
-## Generated Code Conventions (KSP — never write these manually)
-| Generator | Naming convention              | Example                          |
-|-----------|--------------------------------|----------------------------------|
-| Room      | `<ClassName>_Impl`             | `AppDatabase_Impl`               |
-| Koin KSP  | factory functions              | generated under `di/` package    |
-| Compose   | `ComposableSingletons$<File>Kt`| internal — never reference       |
+## Canonical Patterns
+<!-- TODO: paste your real ViewModel / UiState snippet here.
+     This acts as a few-shot example — the AI will mirror exactly what it sees. -->
+```kotlin
+data class XUiState(val isLoading: Boolean = true, val error: String? = null)
 
+// TODO: swap annotation for your DI framework (@HiltViewModel, etc.)
+@KoinViewModel
+class XViewModel : ViewModel() {
+    private val _uiState = MutableStateFlow(XUiState())
+    val uiState: StateFlow<XUiState> = _uiState.asStateFlow()
+}
+
+@Composable
+fun XScreen(onNavigate: () -> Unit, viewModel: XViewModel = koinViewModel()) {
+    val s by viewModel.uiState.collectAsStateWithLifecycle()
+    // no NavController passed in — callbacks only
+}
+```
+
+---
+
+## Generated Code Conventions (KSP — never write these manually)
+| Generator | Naming convention               | Example                           |
+|-----------|---------------------------------|-----------------------------------|
+| Room      | `<ClassName>_Impl`              | `AppDatabase_Impl`                |
+| Koin KSP  | factory functions               | generated under `di/` package     |
+| Compose   | `ComposableSingletons$<File>Kt` | internal — never reference        |
 <!-- TODO: add conventions for any other code generators your project uses -->
 
 ---
 
 ## Navigation Destinations
-<!-- TODO: list your NavKeys / NavDestinations so the AI can suggest the right one -->
-| Key              | Screen                  |
-|------------------|-------------------------|
-| `Home`           | Main screen             |
-| `Settings`       | App settings            |
+<!-- TODO: list your NavKeys / NavDestinations so the AI picks the right one -->
+| Key        | Screen       |
+|------------|--------------|
+| `Home`     | Main screen  |
+| `Settings` | App settings |
 <!-- add more rows -->
 
 ---
 
-## When to fetch reference docs (mandatory)
-- IF touching DB schema or DAOs → fetch `data/db/AppDatabase.kt` first
-- IF adding a new screen       → read `ui/navigation/Destinations.kt` first
-- IF working on bulk data      → use `python3 scripts/query_data.py report --term "<value>"`
-- IF asked about history       → read `docs/history/CHANGELOG.md` first
-- IF creating/modifying scripts → verify the script contract:
+## Bulk Action Routing (for Gemini — use explicit @-tags in your prompts)
+- IF task involves searching large datasets
+  → do NOT attempt to parse files directly.
+    Propose: `python3 scripts/query_data.py report --term "<value>"`
+    Wait for the structured result before continuing.
+- IF auditing generated or language files
+  → propose `python3 scripts/query_data.py report --term "<value>"` (dry-run first).
+
+---
+
+## Mandatory Context Routing (for Gemini — explicit @-tags)
+- Architecture task      → ALWAYS tag `@AGENTS.md`
+- DB schema / DAO task   → ALWAYS tag `@AppDatabase.kt`
+- New screen / routing   → ALWAYS tag `@Destinations.kt`
+
+---
+
+## When to fetch reference docs
+- IF touching DB schema or DAOs     → fetch `data/db/AppDatabase.kt` first
+- IF adding a new screen            → read `ui/navigation/Destinations.kt` first
+- IF working on bulk data           → use `python3 scripts/query_data.py report --term "<value>"`
+- CRITICAL: IF asked about project history, previous tech stack decisions,
+  why a library was chosen, or before proposing a major refactor
+  → ALWAYS tag `@CHANGELOG.md` and the most recent files in `@docs/history/phases/`
+- IF creating / modifying scripts   → verify the script contract:
     (1) idempotent  (2) has a `report` mode  (3) prints structured output  (4) registered here
 
 ---
 
-## Full reference docs
+## Full reference docs (fetch on demand)
 <!-- TODO: add paths to deep-dive docs for major subsystems -->
-- Phase history: `docs/history/CHANGELOG.md`
+- Decision log index: `docs/history/CHANGELOG.md`
 """,
 
-    # ── Layer 6: HITL Script ──────────────────────────────────────────────────
+    # ── Layer 6: HITL bulk-data query stub ────────────────────────────────────
     "scripts/query_data.py": """\
 #!/usr/bin/env python3
 \"\"\"
-query_data.py — HITL bulk-data query stub.
+query_data.py — Human-proxied bulk-data query tool.
+
+Instead of loading large JSON / asset files into the chat window, the AI proposes
+this command. You run it, paste the structured output back, and the AI continues.
 
 Satisfies the script contract:
-  (1) Idempotent       — safe to re-run, no side effects
-  (2) report mode      — previews results without modifying anything
+  (1) Idempotent        — safe to re-run, no side effects
+  (2) report mode       — previews results without modifying anything
   (3) Structured output — JSON, parseable by the AI in the next turn
-  (4) Registered       — listed in AGENTS.md routing rules
+  (4) Registered        — listed in AGENTS.md and copilot-instructions.md routing rules
 
 Usage:
   python3 scripts/query_data.py report --term "<value>"   # preview (no changes)
@@ -326,65 +214,338 @@ if __name__ == "__main__":
     main()
 """,
 
-    # ── Phase history scaffold ─────────────────────────────────────────────────
+    # ── Phase history scaffold ──────────────────────────��──────────────────────
     "docs/history/CHANGELOG.md": """\
 # Phase History Index
 <!-- Append one line per phase: - [Phase NN — Title](phases/phase-NN-slug.md) `YYYY-MM-DD` -->
 <!-- Example: - [Phase 01 — Initial Setup](phases/phase-01-initial-setup.md) `2026-05-03` -->
+- [Phase 00 — Initial Setup](phases/phase-00-initial-setup.md)  `TODO: add date`
 """,
 
-    # ── Phases directory placeholder ───────────────────────────────────────────
-    "docs/history/phases/.gitkeep": "",
+    # ── Phase 00 template — fill in after your first session ──────────────────
+    "docs/history/phases/phase-00-initial-setup.md": """\
+# Phase 00 — Initial Setup
+
+**Date:** TODO: add date
+
+## Goal
+<!-- TODO: one sentence — what was this phase trying to achieve? -->
+Bootstrap the Deterministic Constraint System so every AI session starts with the
+correct project constraints already loaded.
+
+## Changes
+<!-- TODO: list every file that was created or modified. -->
+- Created `.copilotignore` / `.aiexclude` (context eviction)
+- Created `.github/copilot-instructions.md` (system prompt + CoT protocol + routing rules)
+- Created `AGENTS.md` (architecture map)
+- Created `scripts/query_data.py` (HITL bulk-data stub)
+- Created `docs/history/CHANGELOG.md` + this file (decision log)
+
+## Alternatives considered
+<!-- TODO: record what you evaluated and why you rejected it.
+     This is the highest-value section — it prevents the AI from re-proposing
+     options you already dismissed. Be specific about the trade-offs. -->
+| Option | Why rejected |
+|---|---|
+| Hilt instead of Koin | TODO: fill in |
+| NavController in Composables | TODO: fill in |
+| ... | ... |
+
+## Verification
+<!-- TODO: how did you confirm this phase worked correctly? -->
+- [ ] Ran `python3 setup_agent.py report` — all 8 files listed as "create"
+- [ ] Ran `python3 setup_agent.py apply` — all 8 files created
+- [ ] Opened a new chat session; AI respected project rules without being reminded
+- [ ] Tested history routing: asked "why did we choose X?" — AI read CHANGELOG.md first
+
+## Rules (do not delete)
+- Never delete or rewrite phase files — append a new phase for every significant change.
+- Record rejections, not just choices — what you didn't pick is as important as what you did.
+""",
 }
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Copilot-specific files
+# ──────────────────────────────────────────────────────────────────────────────
+# NOTE: .copilotignore has limited / no practical effect for individual developers —
+# content exclusion is a server-side enterprise feature. The main eviction strategy
+# for Copilot is Tab Hygiene: keep irrelevant files closed. The file is still
+# generated here so teams with enterprise licences benefit, and as a clear
+# declaration of intent.
+COPILOT_FILES = {
+
+    ".copilotignore": """\
+# ═══════════════════════════════════════════════════════════════════════════════
+# GitHub Copilot — Context Eviction
+#
+# ⚠️  For individual developers this file has limited / no practical effect.
+#     Content exclusion is a server-side enterprise feature.
+#     Your most reliable eviction strategy is Tab Hygiene: close files you are
+#     not actively editing — Copilot weights open tabs heavily.
+#
+# For teams on a Copilot Enterprise plan: the patterns below do take effect.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── KSP / Build output ────────────────────────────────────────────────────────
+# Room_Impl, Koin factories, Compose singletons — all generated noise.
+**/build/generated/ksp/**
+app/build/
+build/
+
+# ── Bundled data assets ───────────────────────────────────────────────────────
+# TODO: adjust these paths to match your actual asset directories.
+app/src/main/assets/**
+app/src/main/res/raw/**
+
+# ── Locale translation strings ────────────────────────────────────────────────
+# Each locale file is ~400 lines of dead context. Inject on demand instead.
+# TODO: remove this block if you only have one locale.
+app/src/main/res/values-*/
+
+# ── Binary and media ──────────────────────────────────────────────────────────
+**/*.mp3
+**/*.png
+**/*.jpg
+**/*.webp
+
+# ── Phase history ─────────────────────────────────────────────────────────────
+docs/history/
+""",
+
+    # ── Layer 2 + 3 + 5: System Prompt ───────────────────────────────────────
+    # Auto-loaded by Copilot at the start of every chat session.
+    ".github/copilot-instructions.md": """\
+# AI Coding Rules — GitHub Copilot
+# Auto-loaded every session. Keep this file focused and under ~200 lines.
+
+## ═══════════════════════════════════════════════════════════════
+## LAYER 3 — Interaction Protocol  (Chain-of-Thought Enforcement)
+## ═══════════════════════════════════════════════════════════════
+## Requires the model to plan before it writes code.
+## DO NOT REMOVE — this is the highest-impact single rule.
+
+**New feature / new screen / DB migration / any architecture change:**
+Before writing ANY code, you MUST:
+1. **Restate** what you understood from the request in 2–3 lines.
+2. **Propose** the implementation approach with a short pros/cons table.
+3. **List at least one alternative** approach with its trade-offs.
+4. **Ask** if the user wants to proceed.
+Only write code after the user explicitly confirms.
+
+**Bug fix or refactor touching ≤ 3 files:**
+Restate what you understood + confirm approach. No full pros/cons table needed.
+
+**Single-file change, rename, or obvious one-liner:**
+Just do it.
+
+---
+
+## ═══════════════════════════════════════════════════════════════
+## LAYER 2 — Non-Negotiable Project Rules
+## ═══════════════════════════════════════════════════════════════
+## TODO: replace these examples with your actual rules.
+
+1. No hardcoded strings — use `stringResource(R.string.*)`.
+2. No NavController in Composables — navigation via callbacks only.
+3. `@KoinViewModel` on every ViewModel.
+   <!-- TODO: swap for @HiltViewModel if using Hilt -->
+4. Entity != Domain model — map at the repository boundary; never expose Room entities above `data/`.
+5. Apply `navigationBarsPadding()` + `statusBarsPadding()` on every screen root.
+
+## TODO: paste your canonical ViewModel / UiState pattern here.
+## Copilot will mirror exactly whatever code example you provide.
+<!--
+```kotlin
+data class XUiState(val isLoading: Boolean = true, val error: String? = null)
+
+@KoinViewModel
+class XViewModel : ViewModel() {
+    private val _uiState = MutableStateFlow(XUiState())
+    val uiState: StateFlow<XUiState> = _uiState.asStateFlow()
+}
+```
+-->
+
+---
+
+## ═══════════════════════════════════════════════════════════════
+## LAYER 5 — Mandatory Routing Rules  (Deterministic File Injection)
+## ═══════════════════════════════════════════════════════════════
+## Hard-coded triggers — the AI fetches the right file on keyword match.
+## Semantic search alone is unreliable; these rules are the safety net.
+## TODO: add a rule for every architecture boundary in your project.
+
+- IF the task involves DB schema, DAOs, or migrations
+  → fetch `data/db/AppDatabase.kt` immediately.
+- IF adding a new screen or destination
+  → read `ui/navigation/Destinations.kt` first.
+- IF prompt starts with `@DB`    → fetch AppDatabase.kt.
+- IF prompt starts with `@Nav`   → fetch Destinations.kt + Navigation.kt.
+- IF prompt starts with `@AI`    → read the AI integration guide first.
+- IF working on large datasets or bulk JSON files
+  → do NOT read files directly. Instead, propose:
+    `python3 scripts/query_data.py report --term "<value>"`
+    Wait for the user to provide the structured result before continuing.
+- IF asked why a certain library or architecture was chosen,
+  OR before proposing a major refactor
+  → FIRST read `docs/history/CHANGELOG.md` to identify the relevant phase,
+    THEN read that phase file to understand the existing constraints.
+
+## TODO: add your own @-shortcuts for frequently accessed files, e.g.:
+# - IF prompt starts with `@Theme` → fetch `ui/theme/Color.kt`.
+
+---
+
+## ═══════════════════════════════════════════════════════════════
+## Full reference docs (fetch on demand — NOT loaded every session)
+## ═══════════════════════════════════════════════════════════════
+- Architecture + package map: `AGENTS.md`
+- Phase history: `docs/history/CHANGELOG.md`
+## TODO: add paths to your own deep-dive docs here.
+""",
+
+    # ── Layer 5: Path-matched instruction file for DB context ─────────────────
+    # Copilot injects this automatically only when the developer has a DB file open,
+    # keeping the token budget efficient.
+    ".github/instructions/database.instructions.md": """\
+---
+applyTo: "app/src/main/java/**/data/db/**/*.kt"
+---
+# Database Architecture Constraints
+
+- NEVER expose Room entities above the `data/` layer.
+- All data MUST be mapped to Domain Models at the repository boundary before
+  reaching the Domain or UI layers.
+- Use `@Transaction` for queries that join multiple tables.
+- Run `report` mode on any migration script before applying it.
+- TODO: add your real entity → domain mapping pattern here as a code example.
+""",
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Gemini-specific files
+# ──────────────────────────────────────────────────────────────────────────────
+GEMINI_FILES = {
+
+    # ── Layer 1: Context Eviction ─────────────────────────────────────────────
+    # .aiexclude works exactly like .gitignore and natively blocks Gemini Code
+    # Assist from indexing heavy folders for both chat and code completion.
+    # This is the primary eviction mechanism for Gemini users.
+    ".aiexclude": """\
+# ═══════════════════════════════════════════════════════════════════════════════
+# Gemini Code Assist — Context Eviction
+# Works like .gitignore: blocks Gemini from indexing these paths in the
+# background, for both chat and code completion.
+# You can still explicitly tag any of these files with @ when you need them.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── KSP / Build output ────────────────────────────────────────────────────────
+# KSP generates thousands of stub files (_Impl, factories, Compose singletons).
+# This single rule has the biggest impact on context quality.
+**/build/generated/ksp/**
+app/build/
+build/
+
+# ── Bundled data assets ───────────────────────────────────────────────────────
+# Large JSON datasets, raw audio, ML models.
+# TODO: adjust paths to match your actual asset directories.
+app/src/main/assets/exercises/**
+app/src/main/res/raw/**
+
+# ── Locale translation strings ────────────────────────────────────────────────
+# 9 locales × ~400 lines = dead context. Inject on demand via @-tags instead.
+# TODO: remove this block if you only have one locale.
+app/src/main/res/values-*/
+
+# ── Binary, media, and heavy history ─────────────────────────────────────────
+**/*.mp3
+**/*.png
+**/*.jpg
+**/*.webp
+docs/history/
+""",
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Tool selection helpers
+# ──────────────────────────────────────────────────────────────────────────────
+
+TOOL_CHOICES = {
+    "copilot": "GitHub Copilot",
+    "gemini":  "Gemini Code Assist",
+    "both":    "Both (GitHub Copilot + Gemini Code Assist)",
+}
+
+
+def ask_tool_choice() -> str:
+    """Interactively ask the user which AI assistant they use."""
+    print("Which AI assistant are you setting up?")
+    print("  1) GitHub Copilot")
+    print("  2) Gemini Code Assist")
+    print("  3) Both")
+    while True:
+        raw = input("\nEnter 1, 2, or 3: ").strip()
+        if raw == "1":
+            return "copilot"
+        if raw == "2":
+            return "gemini"
+        if raw == "3":
+            return "both"
+        print("  Please enter 1, 2, or 3.")
+
+
+def files_for_tool(tool: str) -> dict:
+    """Return the merged file dict for the chosen tool."""
+    files = dict(SHARED_FILES)
+    if tool in ("copilot", "both"):
+        files.update(COPILOT_FILES)
+    if tool in ("gemini", "both"):
+        files.update(GEMINI_FILES)
+    return files
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Core logic
 # ──────────────────────────────────────────────────────────────────────────────
 
-def collect_plan(root: Path) -> list[dict]:
-    """Return a list of actions the script would take."""
+def collect_plan(root: Path, files: dict) -> list[dict]:
     plan = []
-    for rel_path, content in FILES.items():
+    for rel_path, content in files.items():
         target = root / rel_path
         plan.append({
+            "path": str(target),
             "rel_path": rel_path,
-            "action": "skip" if target.exists() else "create",
+            "action": "skip (already exists)" if target.exists() else "create",
             "size_bytes": len(content.encode()),
-            "_content": content,   # internal — stripped before JSON output
-            "_target": target,     # internal — stripped before JSON output
         })
     return plan
 
 
-def _public(plan: list[dict]) -> list[dict]:
-    """Strip internal keys before printing."""
-    return [{k: v for k, v in item.items() if not k.startswith("_")} for item in plan]
-
-
-def run_report(root: Path) -> None:
-    plan = collect_plan(root)
-    print(json.dumps({"root": str(root), "files": _public(plan)}, indent=2))
+def run_report(root: Path, files: dict, tool: str) -> None:
+    plan = collect_plan(root, files)
+    print(f"\nTool: {TOOL_CHOICES[tool]}")
+    print(json.dumps({"root": str(root), "files": plan}, indent=2))
     creates = sum(1 for f in plan if f["action"] == "create")
-    skips   = sum(1 for f in plan if f["action"] == "skip")
+    skips   = sum(1 for f in plan if f["action"].startswith("skip"))
     print(f"\n→ {creates} file(s) would be created, {skips} already exist (would be skipped).")
 
 
-def run_apply(root: Path) -> None:
-    plan = collect_plan(root)
+def run_apply(root: Path, files: dict, tool: str) -> None:
+    plan = collect_plan(root, files)
     results = []
 
     for item in plan:
-        target: Path = item["_target"]
-        if item["action"] == "skip":
-            results.append({"rel_path": item["rel_path"], "result": "skipped"})
+        target = Path(item["path"])
+        if target.exists():
+            results.append({"path": item["rel_path"], "result": "skipped"})
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(item["_content"], encoding="utf-8")
+        target.write_text(files[item["rel_path"]], encoding="utf-8")
         if target.suffix == ".py":
             target.chmod(0o755)
-        results.append({"rel_path": item["rel_path"], "result": "created"})
+        results.append({"path": item["rel_path"], "result": "created"})
 
+    print(f"\nTool: {TOOL_CHOICES[tool]}")
     print(json.dumps({"root": str(root), "files": results}, indent=2))
     created = [r for r in results if r["result"] == "created"]
     skipped = [r for r in results if r["result"] == "skipped"]
@@ -392,10 +553,16 @@ def run_apply(root: Path) -> None:
 
     if created:
         print("\nNext steps:")
-        print("  1. Open .copilotignore                   → adjust paths to your build/asset directories")
-        print("  2. Open .github/copilot-instructions.md  → paste your real ViewModel pattern")
-        print("  3. Open AGENTS.md                        → fill in your package map and nav destinations")
-        print("  4. Open scripts/query_data.py            → implement lookup logic for your data")
+        if tool in ("copilot", "both"):
+            print("  • .copilotignore                           → adjust paths (enterprise only; Tab Hygiene for individuals)")
+            print("  • .github/copilot-instructions.md          → paste your real ViewModel pattern + project rules")
+            print("  • .github/instructions/database.instructions.md → update the applyTo glob to your package path")
+        if tool in ("gemini", "both"):
+            print("  • .aiexclude                               → adjust paths to your build / asset directories")
+        print("  • AGENTS.md                                → fill in your package map, nav destinations, and patterns")
+        print("  • scripts/query_data.py                    → implement lookup logic for your data")
+        print("  • docs/history/phases/phase-00-initial-setup.md → fill in your first decisions + alternatives considered")
+        print("\nRemember: start a fresh chat session for every new task (Reset Habit).")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -408,20 +575,24 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python3 setup_agent.py report            # preview without making changes
-  python3 setup_agent.py apply             # create files (skips existing ones)
-  python3 setup_agent.py apply --root /path/to/project
+  python3 setup_agent.py report   # preview without making changes
+  python3 setup_agent.py apply    # create files (skips existing ones)
         """
     )
     parser.add_argument(
         "command",
         choices=["report", "apply"],
-        help="report = preview only | apply = create files"
+        help="report = preview only | apply = create files",
     )
     parser.add_argument(
         "--root",
         default=".",
-        help="Project root directory (default: current directory)"
+        help="Project root directory (default: current directory)",
+    )
+    parser.add_argument(
+        "--tool",
+        choices=["copilot", "gemini", "both"],
+        help="AI assistant to configure (skips interactive prompt)",
     )
     args = parser.parse_args()
     root = Path(args.root).resolve()
@@ -430,13 +601,16 @@ Examples:
         print(f"❌ Directory not found: {root}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"🤖 Deterministic Constraint System — {args.command.upper()}")
+    print("🤖 Deterministic Constraint System — " + args.command.upper())
     print(f"   Project root: {root}\n")
 
+    tool = args.tool or ask_tool_choice()
+    files = files_for_tool(tool)
+
     if args.command == "report":
-        run_report(root)
+        run_report(root, files, tool)
     else:
-        run_apply(root)
+        run_apply(root, files, tool)
 
 
 if __name__ == "__main__":
