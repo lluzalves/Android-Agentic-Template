@@ -1,7 +1,7 @@
 # Android Agentic Template
 
-> Stop letting AI guess your architecture.  
-> One script. Seven layers. Drop into any Android project and run.
+> Stop letting AI guess your architecture.
+> One script. A context-governed workflow. Drop into any Android project and run.
 
 ---
 
@@ -11,17 +11,17 @@ AI coding assistants don't know your Koin modules, your Room schema, or your Nav
 They're probabilistic text generators with finite context windows — they will pass `NavController`
 into Composables and hardcode strings until you give them guardrails.
 
-This script wires **seven layers** of constraints around GitHub Copilot, Gemini Code Assist, or both:
+This script wires a practical context-governed workflow around GitHub Copilot, Gemini Code Assist, or both:
 
-| Layer | What it does | File |
+| Area | What it does | File |
 |---|---|---|
-| 1 — Eviction | Blocks KSP stubs, assets, locale XMLs from passive scan | `.copilotignore` / `.aiexclude` |
-| 2 — System Prompt | Project rules + canonical Kotlin patterns | `.github/copilot-instructions.md` |
-| 3 — CoT Enforcement | Forces plan-before-code on architecture changes | Inside copilot-instructions.md |
-| 4 — Architecture Map | Package map + KSP conventions | `AGENTS.md` |
-| 5 — Keyword Routing | `@DB`, `@Nav`, `@AI` trigger deterministic file injection | Inside copilot-instructions.md + AGENTS.md |
-| 6 — HITL Scripts | Bulk data ops via human-gated terminal commands | `scripts/query_data.py` |
-| 7 — Decision Log | Append-only memory of why decisions were made | `docs/history/` |
+| Context hygiene | Keeps generated files, assets, and locale XMLs out of passive context where supported | `.copilotignore` / `.aiexclude` |
+| Project instructions | Project rules + canonical Kotlin patterns | `.github/copilot-instructions.md` |
+| Planning checkpoint | Visible planning and risk checks for non-trivial changes | Inside `copilot-instructions.md` |
+| Architecture map | Package map + KSP/generated-code conventions | `AGENTS.md` |
+| Explicit routing | Reminds the assistant which files to read/include for architecture-sensitive tasks | Inside `copilot-instructions.md` + `AGENTS.md` |
+| Script distillation | Bulk data ops via small terminal scripts instead of loading huge files into chat | `scripts/query_data.py` |
+| Decision log | Append-only project-readable history of why decisions were made | `docs/history/` |
 
 ---
 
@@ -96,7 +96,7 @@ Next steps:
   • scripts/query_data.py                     → implement lookup logic for your data
   • docs/history/phases/phase-00-initial-setup.md → fill in your first decisions + alternatives considered
 
-Remember: start a fresh chat session for every new task (Reset Habit).
+Remember: start a fresh chat session when switching to an unrelated task.
 ```
 
 > **Safe to re-run** — existing files are never overwritten.
@@ -125,10 +125,10 @@ Every generated file has `# TODO:` markers. The five that matter most:
 ### 1. `.copilotignore` / `.aiexclude`
 Adjust asset and build paths to match your project structure.
 > ⚠️ `.copilotignore` only has practical effect on Copilot Enterprise plans.
-> For individuals, the real eviction strategy is **Tab Hygiene** — keep irrelevant files closed.
+> For individuals, the practical context hygiene habit is **Tab Hygiene** — keep irrelevant files closed.
 
 ### 2. `.github/copilot-instructions.md`
-Paste your real ViewModel/UiState pattern. The AI will mirror it exactly:
+Paste your real ViewModel/UiState pattern so the assistant has a concrete local example to follow:
 ```kotlin
 // TODO: replace with your real pattern + DI annotation
 data class MyUiState(val isLoading: Boolean = true, val error: String? = null)
@@ -140,6 +140,8 @@ class MyViewModel : ViewModel() {
 }
 ```
 
+Concrete local examples make the assistant more likely to follow your project's style than a generic rule alone.
+
 ### 3. `AGENTS.md`
 Fill in your actual package map, navigation destinations, and KSP conventions.
 
@@ -148,14 +150,14 @@ Replace the stub with real lookup logic for your project's data.
 
 ### 5. `docs/history/phases/phase-00-initial-setup.md`
 Fill in the **Goal**, **Changes**, **Alternatives considered**, and **Verification** sections
-after your first session. This is the seed of your project's long-term AI memory.
+after your first session. This is the seed of your project's decision history for AI-assisted work.
 
 ---
 
 ## The Decision Log
 
-The log gives the AI a "memory" that survives across chat sessions. Without it, the AI
-re-proposes libraries you already rejected and undoes architectural trade-offs you spent
+The log gives the assistant a project-readable history that survives across chat sessions. Without it, the assistant may
+re-propose libraries you already rejected and undo architectural trade-offs you spent
 days finalising.
 
 Each phase file follows this structure:
@@ -223,4 +225,4 @@ Every script in `scripts/` must satisfy four rules:
 
 ## Full article
 
-**[Stop Letting AI Go Off-Script: Building a Constraint-Based Context Pipeline](#)**
+**[Stop Letting AI Go Off-Script: Building a Context-Governed Workflow](#)**
